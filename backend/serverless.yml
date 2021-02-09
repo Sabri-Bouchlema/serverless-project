@@ -19,7 +19,7 @@ provider:
   environment:
     TODOS_TABLE: Todos-${self:provider.stage}
     TODO_ID_INDEX_NAME: TodoIdIndex
-    IMAGES_S3_BUCKET: todos-images-${self:provider.stage}
+    IMAGES_S3_BUCKET: todos-images-xcfr-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 300
 
 functions:

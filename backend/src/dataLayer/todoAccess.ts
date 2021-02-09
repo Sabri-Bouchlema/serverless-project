@@ -116,7 +116,15 @@ export class TodoAccess {
       }
     }).promise()
 
-    if (result[0].attachmentUrl) {
+    if (result.Count === 0) {
+      throw Error("Todo item not found");
+    }
+
+    const todoItem = result.Items[0];
+
+    if (!todoItem.attachmentUrl) {
+      console.log("generate attachmentUrl to todo item : ", todoItem)
+
       const attachmentUrl = 'https://' + this.bucketName + '.s3.amazonaws.com/' + todoId
 
       await this.docClient.update({
@@ -133,12 +141,14 @@ export class TodoAccess {
         },
         ReturnValues: "UPDATED_NEW"
       }).promise()
+    } else {
+      console.log("AttachmentUrl for todo item already generated", todoItem)
     }
 
     return this.getUploadUrl(todoId);
   }
 
-  getUploadUrl(imageId: string) {
+  getUploadUrl(imageId: string): string {
     return this.s3.getSignedUrl('putObject', {
       Bucket: this.bucketName,
       Key: imageId,

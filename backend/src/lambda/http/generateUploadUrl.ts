@@ -8,7 +8,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
   const todoId = event.pathParameters.todoId;
   const userId = getUserId(event);
 
-  const uploadUrl = generateUploadUrl(userId, todoId);
+  const uploadUrl = await generateUploadUrl(userId, todoId);
 
   return {
     statusCode: 200,
