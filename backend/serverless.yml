@@ -77,6 +77,9 @@ functions:
         Action:
           - dynamodb:Query
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODO_ID_INDEX_NAME}
+    deploymentSettings:
+      type: Linear10PercentEvery1Minute
+      alias: Live
 
   CreateTodo:
     handler: src/lambda/http/createTodo.handler
