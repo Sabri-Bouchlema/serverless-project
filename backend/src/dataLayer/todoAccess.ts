@@ -130,7 +130,7 @@ export class TodoAccess {
     }).promise()
 
     if (result.Count === 0) {
-      throw Error(`Cannot find todo item with id : ${todoId}`);
+      throw new Error(`Cannot find todo item with id : ${todoId}`);
     }
 
     return result.Items[0] as TodoItem;
