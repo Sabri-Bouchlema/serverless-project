@@ -66,8 +66,6 @@ async function verifyToken(authHeader: string): Promise<JwtPayload> {
 
   const jwks: JWKS = response.data;
 
-  console.log(jwks)
-
   const signingKeys = jwks.keys
     .filter(key => key.use === 'sig' // JWK property `use` determines the JWK is for signature verification
       && key.kty === 'RSA' // We are only supporting RSA (RS256)
@@ -77,16 +75,11 @@ async function verifyToken(authHeader: string): Promise<JwtPayload> {
       return { kid: key.kid, publicKey: certToPEM(key.x5c[0]) };
     });
 
-  console.log(signingKeys)
-
   const signingKey = signingKeys.find(key => key.kid === jwt.header.kid);
 
   if (!signingKey) {
     throw new Error(`Unable to find a signing key that matches '${jwt.header.kid}'`);
   }
-
-  console.log(signingKey)
-
 
   return verify(token, signingKey.publicKey, { algorithms: ['RS256'] }) as JwtPayload;
 }

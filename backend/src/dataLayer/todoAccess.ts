@@ -4,9 +4,11 @@ import * as AWSXRay from 'aws-xray-sdk'
 import { TodoItem } from '../models/TodoItem'
 import { UpdateTodoRequest } from '../requests/UpdateTodoRequest'
 import { DocumentClient } from 'aws-sdk/clients/dynamodb'
+import { createLogger } from '../utils/logger'
 
 
 const XAWS = AWSXRay.captureAWS(AWS)
+const logger = createLogger('todo-access')
 
 export class TodoAccess {
 
@@ -21,7 +23,7 @@ export class TodoAccess {
   }
 
   async getAllTodos(userId: string): Promise<TodoItem[]> {
-    console.log('Getting all todos')
+    logger.info(`Getting all todos for user ${userId}`)
 
     const result = await this.docClient.query({
       TableName: this.todosTable,
@@ -33,41 +35,37 @@ export class TodoAccess {
     }).promise()
 
     const items = result.Items
+    logger.info("Todos list has been fetched successfully")
     return items as TodoItem[]
   }
 
   async createTodo(todo: TodoItem): Promise<TodoItem> {
+    logger.info(`Start creating a todo item ${todo}`)
+
     await this.docClient.put({
       TableName: this.todosTable,
       Item: todo
     }).promise()
 
+    logger.info(`Todo item has been created successfully ${todo}`)
     return todo
   }
 
   async updateTodo(userId: string, todoId: string, updatedTodo: UpdateTodoRequest): Promise<void> {
+    logger.info(`Start updating todo item  ${updatedTodo}`)
 
-
-    const result = await this.docClient.query({
-      TableName: this.todosTable,
-      IndexName: this.todoIdIndexName,
-      KeyConditionExpression: 'userId = :userId and todoId = :todoId',
-      ExpressionAttributeValues: {
-        ':userId': userId,
-        ':todoId': todoId
-      }
-    }).promise()
+    const todoItem = await this.getTodoItem(userId, todoId);
 
     await this.docClient.update({
       TableName: this.todosTable,
       Key: {
-        userId: userId,
-        createdAt: result.Items[0].createdAt
+        userId: todoItem.userId,
+        createdAt: todoItem.createdAt
       },
       ConditionExpression: "todoId =:todoId",
       UpdateExpression: "set #namefield = :name, dueDate=:dueDate, done=:done",
       ExpressionAttributeValues: {
-        ":todoId": todoId,
+        ":todoId": todoItem.todoId,
         ":name": updatedTodo.name,
         ":dueDate": updatedTodo.dueDate,
         ":done": updatedTodo.done
@@ -77,35 +75,50 @@ export class TodoAccess {
       },
       ReturnValues: "UPDATED_NEW"
     }).promise()
+
+    logger.info(`Todo item has been successfully updated ${updatedTodo}`)
   }
 
   async deleteTodo(userId: string, todoId: string): Promise<void> {
 
-
-    const result = await this.docClient.query({
-      TableName: this.todosTable,
-      IndexName: this.todoIdIndexName,
-      KeyConditionExpression: 'userId = :userId and todoId = :todoId',
-      ExpressionAttributeValues: {
-        ':userId': userId,
-        ':todoId': todoId
-      }
-    }).promise()
+    const todoItem = await this.getTodoItem(userId, todoId);
 
     await this.docClient.delete({
       TableName: this.todosTable,
       Key: {
-        userId: userId,
-        createdAt: result.Items[0].createdAt
+        userId: todoItem.userId,
+        createdAt: todoItem.createdAt
       },
       ConditionExpression: "todoId =:todoId",
       ExpressionAttributeValues: {
-        ":todoId": todoId
+        ":todoId": todoItem.todoId
       }
     }).promise()
   }
 
   async generateUploadUrl(userId: string, todoId: string): Promise<string> {
+
+    const todoItem = await this.getTodoItem(userId, todoId);
+
+    if (!todoItem.attachmentUrl) {
+      logger.info(`Set attachmentUrl for todo item ${todoItem}`)
+      await this.setAttachmentUrl(todoItem);
+    } else {
+      logger.info(`AttachmentUrl for todo item already setted ${todoItem}`)
+    }
+
+    return this.getUploadUrl(todoItem.todoId);
+  }
+
+  getUploadUrl(imageId: string): string {
+    return this.s3.getSignedUrl('putObject', {
+      Bucket: this.bucketName,
+      Key: imageId,
+      Expires: this.urlExpiration
+    })
+  }
+
+  async getTodoItem(userId: string, todoId: string): Promise<TodoItem> {
     const result = await this.docClient.query({
       TableName: this.todosTable,
       IndexName: this.todoIdIndexName,
@@ -117,49 +130,35 @@ export class TodoAccess {
     }).promise()
 
     if (result.Count === 0) {
-      throw Error("Todo item not found");
+      throw Error(`Cannot find todo item with id : ${todoId}`);
     }
 
-    const todoItem = result.Items[0];
-
-    if (!todoItem.attachmentUrl) {
-      console.log("generate attachmentUrl to todo item : ", todoItem)
-
-      const attachmentUrl = 'https://' + this.bucketName + '.s3.amazonaws.com/' + todoId
-
-      await this.docClient.update({
-        TableName: this.todosTable,
-        Key: {
-          userId: userId,
-          createdAt: result.Items[0].createdAt
-        },
-        ConditionExpression: "todoId =:todoId",
-        UpdateExpression: "set attachmentUrl = :attachmentUrl",
-        ExpressionAttributeValues: {
-          ":todoId": todoId,
-          ":attachmentUrl": attachmentUrl
-        },
-        ReturnValues: "UPDATED_NEW"
-      }).promise()
-    } else {
-      console.log("AttachmentUrl for todo item already generated", todoItem)
-    }
-
-    return this.getUploadUrl(todoId);
+    return result.Items[0] as TodoItem;
   }
 
-  getUploadUrl(imageId: string): string {
-    return this.s3.getSignedUrl('putObject', {
-      Bucket: this.bucketName,
-      Key: imageId,
-      Expires: this.urlExpiration
-    })
+  async setAttachmentUrl(todoItem: TodoItem): Promise<void> {
+    const attachmentUrl = 'https://' + this.bucketName + '.s3.amazonaws.com/' + todoItem.todoId
+
+    await this.docClient.update({
+      TableName: this.todosTable,
+      Key: {
+        userId: todoItem.userId,
+        createdAt: todoItem.createdAt
+      },
+      ConditionExpression: "todoId =:todoId",
+      UpdateExpression: "set attachmentUrl = :attachmentUrl",
+      ExpressionAttributeValues: {
+        ":todoId": todoItem.todoId,
+        ":attachmentUrl": attachmentUrl
+      },
+      ReturnValues: "UPDATED_NEW"
+    }).promise()
   }
 }
 
 function createDynamoDBClient() {
   if (process.env.IS_OFFLINE) {
-    console.log('Creating a local DynamoDB instance')
+    logger.info('Creating a local DynamoDB instance')
     return new XAWS.DynamoDB.DocumentClient({
       region: 'localhost',
       endpoint: 'http://localhost:8000'
