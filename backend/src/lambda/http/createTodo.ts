@@ -11,7 +11,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
 
   const userId = getUserId(event);
 
-  const newItem = await createTodo(newTodo, userId)
+  const item = await createTodo(newTodo, userId)
 
   return {
     statusCode: 200,
@@ -19,7 +19,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
       'Access-Control-Allow-Origin': '*'
     },
     body: JSON.stringify({
-      newItem
+      item
     })
   }
 }

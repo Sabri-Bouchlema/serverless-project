@@ -30,6 +30,12 @@ provider:
     IMAGES_S3_BUCKET: todos-images-xcfr-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 300
 
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - codedeploy:*
+      Resource:
+        - '*'
 custom:
 
   serverless-offline:
