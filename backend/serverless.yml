@@ -8,6 +8,7 @@ plugins:
   - serverless-aws-documentation
   - serverless-dynamodb-local
   - serverless-offline
+  - serverless-plugin-canary-deployments
 
 package:
   individually: true
@@ -96,6 +97,9 @@ functions:
         Action:
           - dynamodb:PutItem
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+    deploymentSettings:
+      type: Linear10PercentEvery1Minute
+      alias: Live
 
   UpdateTodo:
     handler: src/lambda/http/updateTodo.handler
@@ -121,6 +125,9 @@ functions:
         Action:
           - dynamodb:Query
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODO_ID_INDEX_NAME}
+    deploymentSettings:
+      type: Linear10PercentEvery1Minute
+      alias: Live
 
   DeleteTodo:
     handler: src/lambda/http/deleteTodo.handler
@@ -140,6 +147,9 @@ functions:
         Action:
           - dynamodb:Query
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODO_ID_INDEX_NAME}
+    deploymentSettings:
+      type: Linear10PercentEvery1Minute
+      alias: Live
 
   GenerateUploadUrl:
     handler: src/lambda/http/generateUploadUrl.handler
@@ -164,6 +174,9 @@ functions:
           - s3:PutObject
           - s3:GetObject
         Resource: arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*
+    deploymentSettings:
+      type: Linear10PercentEvery1Minute
+      alias: Live
 
 resources:
   Resources:
