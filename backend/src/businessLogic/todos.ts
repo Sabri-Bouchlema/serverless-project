@@ -40,3 +40,10 @@ export async function deleteTodo(
 ): Promise<void> {
   await todoAccess.deleteTodo(userId, todoId);
 }
+
+export async function generateUploadUrl(
+  userId: string,
+  todoId: string
+): Promise<string> {
+  return await todoAccess.generateUploadUrl(userId, todoId);
+}

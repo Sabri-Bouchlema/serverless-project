@@ -1,18 +1,22 @@
 import * as AWS from 'aws-sdk'
 import * as AWSXRay from 'aws-xray-sdk'
-import { DocumentClient } from 'aws-sdk/clients/dynamodb'
-
-const XAWS = AWSXRay.captureAWS(AWS)
 
 import { TodoItem } from '../models/TodoItem'
 import { UpdateTodoRequest } from '../requests/UpdateTodoRequest'
+import { DocumentClient } from 'aws-sdk/clients/dynamodb'
+
+
+const XAWS = AWSXRay.captureAWS(AWS)
 
 export class TodoAccess {
 
   constructor(
     private readonly docClient: DocumentClient = createDynamoDBClient(),
+    private readonly s3 = createS3(),
     private readonly todosTable = process.env.TODOS_TABLE,
-    private readonly todoIdIndexName = process.env.TODO_ID_INDEX_NAME
+    private readonly todoIdIndexName = process.env.TODO_ID_INDEX_NAME,
+    private readonly bucketName = process.env.IMAGES_S3_BUCKET,
+    private readonly urlExpiration = process.env.SIGNED_URL_EXPIRATION
   ) {
   }
 
@@ -100,9 +104,48 @@ export class TodoAccess {
       }
     }).promise()
   }
+
+  async generateUploadUrl(userId: string, todoId: string): Promise<string> {
+    const result = await this.docClient.query({
+      TableName: this.todosTable,
+      IndexName: this.todoIdIndexName,
+      KeyConditionExpression: 'userId = :userId and todoId = :todoId',
+      ExpressionAttributeValues: {
+        ':userId': userId,
+        ':todoId': todoId
+      }
+    }).promise()
+
+    if (result[0].attachmentUrl) {
+      const attachmentUrl = 'https://' + this.bucketName + '.s3.amazonaws.com/' + todoId
+
+      await this.docClient.update({
+        TableName: this.todosTable,
+        Key: {
+          userId: userId,
+          createdAt: result.Items[0].createdAt
+        },
+        ConditionExpression: "todoId =:todoId",
+        UpdateExpression: "set attachmentUrl = :attachmentUrl",
+        ExpressionAttributeValues: {
+          ":todoId": todoId,
+          ":attachmentUrl": attachmentUrl
+        },
+        ReturnValues: "UPDATED_NEW"
+      }).promise()
+    }
+
+    return this.getUploadUrl(todoId);
+  }
+
+  getUploadUrl(imageId: string) {
+    return this.s3.getSignedUrl('putObject', {
+      Bucket: this.bucketName,
+      Key: imageId,
+      Expires: this.urlExpiration
+    })
+  }
 }
-
-
 
 function createDynamoDBClient() {
   if (process.env.IS_OFFLINE) {
@@ -114,4 +157,10 @@ function createDynamoDBClient() {
   }
 
   return new XAWS.DynamoDB.DocumentClient()
+}
+
+function createS3() {
+  return new XAWS.S3({
+    signatureVersion: 'v4'
+  })
 }
