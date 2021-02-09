@@ -33,3 +33,10 @@ export async function updateTodo(
 ): Promise<void> {
   await todoAccess.updateTodo(userId, todoId, updatedTodo);
 }
+
+export async function deleteTodo(
+  userId: string,
+  todoId: string
+): Promise<void> {
+  await todoAccess.deleteTodo(userId, todoId);
+}

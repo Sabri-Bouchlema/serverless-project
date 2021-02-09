@@ -74,7 +74,35 @@ export class TodoAccess {
       ReturnValues: "UPDATED_NEW"
     }).promise()
   }
+
+  async deleteTodo(userId: string, todoId: string): Promise<void> {
+
+
+    const result = await this.docClient.query({
+      TableName: this.todosTable,
+      IndexName: this.todoIdIndexName,
+      KeyConditionExpression: 'userId = :userId and todoId = :todoId',
+      ExpressionAttributeValues: {
+        ':userId': userId,
+        ':todoId': todoId
+      }
+    }).promise()
+
+    await this.docClient.delete({
+      TableName: this.todosTable,
+      Key: {
+        userId: userId,
+        createdAt: result.Items[0].createdAt
+      },
+      ConditionExpression: "todoId =:todoId",
+      ExpressionAttributeValues: {
+        ":todoId": todoId
+      }
+    }).promise()
+  }
 }
+
+
 
 function createDynamoDBClient() {
   if (process.env.IS_OFFLINE) {
